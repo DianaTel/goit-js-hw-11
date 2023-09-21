@@ -3,27 +3,22 @@ import { fetchPhoto } from './js/pixabay-api';
 import { createMarkup } from './js/markup';
 import { refs } from './js/refs';
 import { lightbox } from './js/lightbox';
+import { paramsForNotify } from './js/paramsForNotify';
 
 const { searchForm, gallery, btnLoadMore } = refs;
-
-const paramsForNotify = {
-  position: 'center-center',
-  timeout: 4000,
-  width: '400px',
-  fontSize: '24px',
-};
 
 const perPage = 40;
 let page = 1;
 let keyOfSearchPhoto = '';
 
-btnLoadMore.classList.add('is-hidden');
-
 searchForm.addEventListener('submit', onSubmitForm);
+btnLoadMore.addEventListener('click', onClickLoadMore);
 
-function onSubmitForm(event) {
+async function onSubmitForm(event) {
   event.preventDefault();
 
+  window.scrollTo(0, 0);
+  btnLoadMore.classList.add('is-hidden');
   gallery.innerHTML = '';
   page = 1;
   const { searchQuery } = event.currentTarget.elements;
@@ -39,64 +34,55 @@ function onSubmitForm(event) {
     return;
   }
 
-  fetchPhoto(keyOfSearchPhoto, page, perPage)
-    .then(data => {
-      const searchResults = data.hits;
-      if (data.totalHits === 0) {
-        Notify.failure(
-          'Sorry, there are no images matching your search query. Please try again.',
-          paramsForNotify
-        );
-      } else {
-        Notify.info(
-          `Hooray! We found ${data.totalHits} images.`,
-          paramsForNotify
-        );
-        // console.log(searchResults);
-        createMarkup(searchResults);
-        lightbox.refresh();
-      }
-      if (data.totalHits > perPage) {
-        btnLoadMore.classList.remove('is-hidden');
-        window.addEventListener('scroll', showLoadMorePage);
-      }
-      // scrollPage();
-    })
-    .catch(onFetchError);
+  const data = await fetchPhoto(keyOfSearchPhoto, page, perPage)
+  if (!data) {
+    return;
+  }
 
-  btnLoadMore.addEventListener('click', onClickLoadMore);
+  if (data.totalHits === 0) {
+    Notify.failure(
+      'Sorry, there are no images matching your search query. Please try again.',
+      paramsForNotify
+    );
+  } else {
+    Notify.info(
+      `Hooray! We found ${data.totalHits} images.`,
+      paramsForNotify
+    );
+    createMarkup(data.hits);
+    lightbox.refresh();
+  }
+  if (data.totalHits > perPage) {
+    btnLoadMore.classList.remove('is-hidden');
+    window.addEventListener('scroll', showLoadMorePage);
+  }
+  // scrollPage();
 
-  event.currentTarget.reset();
+  event.target.reset();
 }
 
-function onClickLoadMore() {
+async function onClickLoadMore() {
+  
   page += 1;
-  fetchPhoto(keyOfSearchPhoto, page, perPage)
-    .then(data => {
-      const searchResults = data.hits;
-      const numberOfPage = Math.ceil(data.totalHits / perPage);
 
-      createMarkup(searchResults);
-      if (page === numberOfPage) {
-        btnLoadMore.classList.add('is-hidden');
-        Notify.info(
-          "We're sorry, but you've reached the end of search results.",
-          paramsForNotify
-        );
-        btnLoadMore.removeEventListener('click', onClickLoadMore);
-        window.removeEventListener('scroll', showLoadMorePage);
-      }
-      lightbox.refresh();
-      // scrollPage();
-    })
-    .catch(onFetchError);
-}
+  const data = await fetchPhoto(keyOfSearchPhoto, page, perPage)
+  if (!data) {
+    return;
+  }
 
-function onFetchError() {
-  Notify.failure(
-    'Oops! Something went wrong! Try reloading the page or make another choice!',
-    paramsForNotify
-  );
+  const numberOfPage = Math.ceil(data.totalHits / perPage);
+
+  createMarkup(data.hits);
+  if (page === numberOfPage) {
+    btnLoadMore.classList.add('is-hidden');
+    Notify.info(
+      "We're sorry, but you've reached the end of search results.",
+      paramsForNotify
+    );
+    window.removeEventListener('scroll', showLoadMorePage);
+  }
+  lightbox.refresh();
+  // scrollPage();
 }
 
 function showLoadMorePage() {
